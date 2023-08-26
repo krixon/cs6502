@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emulation", "Emulation\Emulation.csproj", "{787D1A8C-DC12-4BDE-A0DF-146D1D463C46}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Console\Console.csproj", "{8B4C1750-6A6E-4033-8B56-E6C1A138044F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly", "Assembly\Assembly.csproj", "{A6D3CCA1-6586-47DF-9037-5F979891CCAD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{787D1A8C-DC12-4BDE-A0DF-146D1D463C46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{787D1A8C-DC12-4BDE-A0DF-146D1D463C46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{787D1A8C-DC12-4BDE-A0DF-146D1D463C46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{787D1A8C-DC12-4BDE-A0DF-146D1D463C46}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B4C1750-6A6E-4033-8B56-E6C1A138044F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B4C1750-6A6E-4033-8B56-E6C1A138044F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B4C1750-6A6E-4033-8B56-E6C1A138044F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B4C1750-6A6E-4033-8B56-E6C1A138044F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
