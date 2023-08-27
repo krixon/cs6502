@@ -69,7 +69,7 @@ public partial class ProcessorFormatter : ICustomFormatter, IFormatProvider
             sb.Append($"{name}:{(value ? 1 : 0)} ");
         }
 
-        sb.Append($"CY:{processor.Clock.Cycles}[{processor.Clock.ProgramCycles}] ");
+        sb.Append($"CY:{processor.Cycles}[{processor.ProgramCycles}] ");
         sb.Append($"IN:{processor.InstructionsExecuted} ");
 
         return sb.ToString();
