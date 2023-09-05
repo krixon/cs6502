@@ -7,7 +7,7 @@ using ProcessorFormatter = CS6502.Console.ProcessorFormatter;
 var asm = new Assembler(0x800);
 var loader = new Loader();
 var ram = new Memory();
-var mpu = new Processor(ram);
+var mpu = new Processor(ram, new Clock());
 var cpuFormatter = new ProcessorFormatter();
 var ramFormatter = new MemoryFormatter();
 

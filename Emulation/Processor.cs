@@ -6,6 +6,7 @@ public class Processor
     public event EventHandler<AfterInstructionEventArgs>? AfterInstruction;
 
     public Memory Memory { get; }
+    public IClock Clock { get; }
     public ushort ProgramCounter { get; private set; }
     public byte A { get; private set; }
     public byte X { get; private set; }
@@ -19,18 +20,17 @@ public class Processor
     public bool Break => Status.HasFlag(Flags.Break);
     public bool Overflow => Status.HasFlag(Flags.Overflow);
     public bool Negative => Status.HasFlag(Flags.Negative);
-    public int Cycles { get; private set; }
-    public int ProgramCycles => Cycles - 8;
 
     private Flags Status { get; set; }
 
-    public Processor() : this(new Memory())
+    public Processor() : this(new Memory(), new Clock())
     {
     }
 
-    public Processor(Memory memory)
+    public Processor(Memory memory, IClock clock)
     {
         Memory = memory;
+        Clock = clock;
         Reset();
     }
 
@@ -51,12 +51,14 @@ public class Processor
         StackPointer = 0xFF;
         Status = Flags.None;
         A = X = Y = 0;
-        Cycles = 8;
+
+        // Simulate the 8 startup cycles (including the JMP).
+        Cycle(8);
     }
 
     public void Step()
     {
-        var previousCycles = Cycles;
+        var previousCycles = Clock.Cycles;
         var opcode = FetchOpcode();
 
         OnBeforeInstruction(new BeforeInstructionEventArgs(opcode));
@@ -383,7 +385,7 @@ public class Processor
 
         // TODO: Include entire instruction, not just opcode. e.g. STA is useful only if we know the address.
         //       Include addressing mode enum.
-        var instructionCycles = Cycles - previousCycles;
+        var instructionCycles = Clock.Cycles - previousCycles;
 
         OnAfterInstruction(new AfterInstructionEventArgs(opcode, instructionCycles));
     }
@@ -473,7 +475,10 @@ public class Processor
 
     private void Cycle(int times = 1)
     {
-        Cycles += times;
+        for (var i = 0; i < times; i++)
+        {
+            Clock.Cycle();
+        }
     }
 
     private ushort Address(AddressMode mode)
