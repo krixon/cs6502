@@ -1,39 +1,34 @@
 namespace CS6502.Emulation;
 
-public class Processor
+public abstract class Processor : IProcessor
 {
-    public event EventHandler<BeforeInstructionEventArgs>? BeforeInstruction;
-    public event EventHandler<AfterInstructionEventArgs>? AfterInstruction;
+    public event EventHandler<EventArgs>? BeforeInstruction;
+    public event EventHandler<AfterExecuteEventArgs>? AfterInstruction;
 
-    public Memory Memory { get; }
-    public IClock Clock { get; }
     public ushort ProgramCounter { get; private set; }
+    public byte StackPointer { get; private set; }
+    public StatusRegister Status { get; } = new();
     public byte A { get; private set; }
     public byte X { get; private set; }
     public byte Y { get; private set; }
-    public byte StackPointer { get; private set; }
-    public int InstructionsExecuted { get; private set; }
-    public bool Carry => Status.HasFlag(Flags.Carry);
-    public bool Zero => Status.HasFlag(Flags.Zero);
-    public bool Interrupt => Status.HasFlag(Flags.Interrupt);
-    public bool Decimal => Status.HasFlag(Flags.Decimal);
-    public bool Break => Status.HasFlag(Flags.Break);
-    public bool Overflow => Status.HasFlag(Flags.Overflow);
-    public bool Negative => Status.HasFlag(Flags.Negative);
+    public IMemory Memory { get; }
+    public IClock Clock { get; }
 
-    private Flags Status { get; set; }
+    private readonly InstructionSet _instructionSet;
 
-    public Processor() : this(new Memory(), new Clock())
+    protected Processor(InstructionSet instructionSet) : this(instructionSet, new Memory(), new Clock())
     {
     }
 
-    public Processor(Memory memory, IClock clock)
+    protected Processor(InstructionSet instructionSet, IMemory memory, IClock clock)
     {
+        _instructionSet = instructionSet;
+
         Memory = memory;
         Clock = clock;
+
         Reset();
     }
-
 
     public void Reset()
     {
@@ -47,64 +42,106 @@ public class Processor
         // instructions exist for the initialisation and loading of all registers, except
         // for the program counter, which is provided by the reset vector at $FFFC).
 
-        ProgramCounter = Memory.ReadWord(0xFFFC);
+        ProgramCounter = ReadAddress(0xFFFC);
         StackPointer = 0xFF;
-        Status = Flags.None;
+        Status.ClearAll();
         A = X = Y = 0;
 
-        // Simulate the 8 startup cycles (including the JMP).
+        // Simulate the 8 startup cycles, including the first JMP.
         Cycle(8);
     }
 
     public void Step()
     {
-        var previousCycles = Clock.Cycles;
-        var opcode = FetchOpcode();
+        var instruction = Fetch();
+        ExecuteWithEvents(instruction);
+    }
 
-        OnBeforeInstruction(new BeforeInstructionEventArgs(opcode));
+    public void Interrupt()
+    {
+        throw new NotImplementedException();
+    }
 
-        switch (opcode)
+    public void NonMaskableInterrupt()
+    {
+        throw new NotImplementedException();
+    }
+
+    protected void Cycle(int times = 1)
+    {
+        for (var i = 0; i < times; i++)
         {
-            case Opcode.AdcAbs:
-                break;
+            Clock.Cycle();
+        }
+    }
+
+    private Instruction Fetch()
+    {
+        // OnBeforeFetch();
+
+        var address = ProgramCounter;
+        var opcode = (Opcode)FetchByte();
+
+        if (!_instructionSet.TryGetInstruction(opcode, out var instruction))
+        {
+            // TODO: Better exception.
+            // TODO: What does the processor actually do in this scenario? undefined?
+            throw new Exception(
+                $"Unsupported opcode ${(byte)opcode:X2} ({opcode.ToString().ToUpperInvariant()}) at ${address:X4}.");
+        }
+
+        // OnAfterFetch(instruction);
+
+        return instruction!;
+    }
+
+    /// <summary>
+    /// Executes an instruction.
+    /// </summary>
+    private void ExecuteWithEvents(Instruction instruction)
+    {
+        OnBeforeExecute(instruction);
+
+        var operation = Execute(instruction);
+
+        OnAfterExecute(operation);
+    }
+
+    protected virtual Operation Execute(Instruction instruction)
+    {
+        switch (instruction.Opcode)
+        {
+            case Opcode.LdaAbs:
+            case Opcode.LdaImm:
+            case Opcode.LdaAbsX:
+            case Opcode.LdaAbsY:
+            case Opcode.LdaZp:
+            case Opcode.LdaZpX:
+            case Opcode.LdaIndX:
+            case Opcode.LdaIndY:
+                return ExecuteLda(instruction);
             case Opcode.AdcImm:
-                break;
+            case Opcode.AdcZp:
+            case Opcode.AdcZpX:
+            case Opcode.AdcAbs:
+            case Opcode.AdcAbsX:
+            case Opcode.AdcAbsY:
             case Opcode.AdcIndX:
-                break;
             case Opcode.AdcIndY:
                 break;
-            case Opcode.AdcZp:
-                break;
-            case Opcode.AdcZpX:
-                break;
-            case Opcode.AdcAbsX:
-                break;
-            case Opcode.AdcAbsY:
-                break;
             case Opcode.AndImm:
-                break;
             case Opcode.AndZp:
-                break;
             case Opcode.AndZpX:
-                break;
             case Opcode.AndAbs:
-                break;
             case Opcode.AndAbsX:
-                break;
             case Opcode.AndAbsY:
-                break;
             case Opcode.AndIndX:
-                break;
             case Opcode.AndIndY:
                 break;
             case Opcode.AslA:
-                break;
             case Opcode.AslZp:
-                break;
             case Opcode.AslZpX:
-                break;
             case Opcode.AslAbs:
-                break;
             case Opcode.AslAbsX:
                 break;
             case Opcode.Bcc:
@@ -114,7 +151,6 @@ public class Processor
             case Opcode.Beq:
                 break;
             case Opcode.BitZp:
-                break;
             case Opcode.BitAbs:
                 break;
             case Opcode.Bmi:
@@ -124,8 +160,6 @@ public class Processor
             case Opcode.Bpl:
                 break;
             case Opcode.Brk:
-                // For now we use BRK to simply halt execution.
-                // TODO: Proper implementation.
                 break;
             case Opcode.Bvs:
                 break;
@@ -140,39 +174,25 @@ public class Processor
             case Opcode.Clv:
                 break;
             case Opcode.CmpImm:
-                break;
             case Opcode.CmpZp:
-                break;
             case Opcode.CmpZpX:
-                break;
             case Opcode.CmpAbs:
-                break;
             case Opcode.CmpAbsX:
-                break;
             case Opcode.CmpAbsY:
-                break;
             case Opcode.CmpIndX:
-                break;
             case Opcode.CmpIndY:
                 break;
             case Opcode.CpxImm:
-                break;
             case Opcode.CpxZp:
-                break;
             case Opcode.CpxAbs:
                 break;
             case Opcode.CpyImm:
-                break;
             case Opcode.CpyZp:
-                break;
             case Opcode.CpyAbs:
                 break;
             case Opcode.DecZp:
-                break;
             case Opcode.DecZpX:
-                break;
             case Opcode.DecAbs:
-                break;
             case Opcode.DecAbsX:
                 break;
             case Opcode.Dex:
@@ -180,109 +200,54 @@ public class Processor
             case Opcode.Dey:
                 break;
             case Opcode.EorImm:
-                break;
             case Opcode.EorZp:
-                break;
             case Opcode.EorZpX:
-                break;
             case Opcode.EorAbs:
-                break;
             case Opcode.EorAbsX:
-                break;
             case Opcode.EorAbsY:
-                break;
             case Opcode.EorIndX:
-                break;
             case Opcode.EorIndY:
                 break;
             case Opcode.IncZp:
-                break;
             case Opcode.IncZpX:
-                break;
             case Opcode.IncAbs:
-                break;
             case Opcode.IncAbsX:
                 break;
             case Opcode.IndX:
-                break;
             case Opcode.IndY:
                 break;
             case Opcode.JmpAbs:
-                break;
             case Opcode.JmpInd:
                 break;
             case Opcode.Jsr:
                 break;
-            case Opcode.LdaAbs:
-                Lda(AddressMode.Absolute);
-                break;
-            case Opcode.LdaAbsX:
-                Lda(AddressMode.AbsoluteX);
-                break;
-            case Opcode.LdaAbsY:
-                Lda(AddressMode.AbsoluteY);
-                break;
-            case Opcode.LdaImm:
-                Lda(AddressMode.Immediate);
-                break;
-            case Opcode.LdaIndX:
-                Lda(AddressMode.IndirectX);
-                break;
-            case Opcode.LdaIndY:
-                Lda(AddressMode.IndirectY);
-                break;
-            case Opcode.LdaZp:
-                break;
-            case Opcode.LdaZpX:
-                break;
-            case Opcode.LdxAbs:
-                break;
             case Opcode.LdxImm:
-                X = FetchByte();
-                SetNegativeAndZeroFlags(X);
-                break;
             case Opcode.LdxZp:
-                break;
             case Opcode.LdxZpY:
-                break;
+            case Opcode.LdxAbs:
             case Opcode.LdxAbsY:
                 break;
             case Opcode.LdyImm:
-                break;
             case Opcode.LdyZp:
-                break;
             case Opcode.LdyZpX:
-                break;
             case Opcode.LdyAbs:
-                break;
             case Opcode.LdyAbsX:
                 break;
             case Opcode.LsrA:
-                break;
             case Opcode.LsrZp:
-                break;
             case Opcode.LsrZpX:
-                break;
             case Opcode.LsrAbs:
-                break;
             case Opcode.LsrAbsX:
                 break;
             case Opcode.Nop:
                 break;
             case Opcode.OraImm:
-                break;
             case Opcode.OraZp:
-                break;
             case Opcode.OraZpX:
-                break;
             case Opcode.OraAbs:
-                break;
             case Opcode.OraAbsX:
-                break;
             case Opcode.OraAbsY:
-                break;
             case Opcode.OraIndX:
-                break;
             case Opcode.OraIndY:
                 break;
             case Opcode.Pha:
@@ -294,23 +259,15 @@ public class Processor
             case Opcode.Plp:
                 break;
             case Opcode.RolA:
-                break;
             case Opcode.RolZp:
-                break;
             case Opcode.RolZpX:
-                break;
             case Opcode.RolAbs:
-                break;
             case Opcode.RolAbsX:
                 break;
             case Opcode.RorA:
-                break;
             case Opcode.RorZp:
-                break;
             case Opcode.RorZpX:
-                break;
             case Opcode.RorAbs:
-                break;
             case Opcode.RorAbsX:
                 break;
             case Opcode.Rti:
@@ -318,19 +275,12 @@ public class Processor
             case Opcode.Rts:
                 break;
             case Opcode.SbcImm:
-                break;
             case Opcode.SbcZp:
-                break;
             case Opcode.SbcZpX:
-                break;
             case Opcode.SbcAbs:
-                break;
             case Opcode.SbcAbsX:
-                break;
             case Opcode.SbcAbsY:
-                break;
             case Opcode.SbcIndX:
-                break;
             case Opcode.SbcIndY:
                 break;
             case Opcode.Sec:
@@ -340,29 +290,19 @@ public class Processor
             case Opcode.Sei:
                 break;
             case Opcode.StaZp:
-                break;
             case Opcode.StaZpX:
-                break;
             case Opcode.StaAbs:
-                break;
             case Opcode.StaAbsX:
-                break;
             case Opcode.StaAbsY:
-                break;
             case Opcode.StaIndX:
-                break;
             case Opcode.StaIndY:
                 break;
             case Opcode.StxZp:
-                break;
             case Opcode.StxZpY:
-                break;
             case Opcode.StxAbs:
                 break;
             case Opcode.StyZp:
-                break;
             case Opcode.StyZpY:
-                break;
             case Opcode.StyAbs:
                 break;
             case Opcode.Tax:
@@ -378,77 +318,60 @@ public class Processor
             case Opcode.Tya:
                 break;
             default:
-                throw new NotImplementedException($"Opcode {opcode:2X} is not implemented.");
+                throw new ArgumentOutOfRangeException();
         }
 
-        ++InstructionsExecuted;
-
-        // TODO: Include entire instruction, not just opcode. e.g. STA is useful only if we know the address.
-        //       Include addressing mode enum.
-        var instructionCycles = Clock.Cycles - previousCycles;
-
-        OnAfterInstruction(new AfterInstructionEventArgs(opcode, instructionCycles));
+        throw new Exception($"Unknown opcode {instruction.Opcode}");
     }
 
-    private void Lda(AddressMode addressMode) => LoadAccumulator(addressMode);
-
-
-    private void LoadAccumulator(AddressMode addressMode)
+    private Operation ExecuteLda(Instruction instruction)
     {
-        A = ReadByte(addressMode);
+        A = FetchOperand(instruction.AddressingMode);
+
         SetNegativeAndZeroFlags(A);
-    }
 
-    private void LoadX(AddressMode addressMode)
-    {
-        X = ReadByte(addressMode);
-        SetNegativeAndZeroFlags(X);
-    }
-
-    private void LoadY(AddressMode addressMode)
-    {
-        Y = ReadByte(addressMode);
-        SetNegativeAndZeroFlags(Y);
-    }
-
-    private Opcode FetchOpcode()
-    {
-        var opcodeAddress = ProgramCounter;
-        var rawOpcode = FetchByte();
-
-        if (!Enum.IsDefined(typeof(Opcode), rawOpcode))
-        {
-            throw new Exception($"Unsupported opcode {rawOpcode:2X} at ${opcodeAddress:4X}.");
-        }
-
-        return (Opcode)rawOpcode;
+        return new Operation(instruction, A);
     }
 
     /// <summary>
-    /// Fetches a byte from memory using the program counter.
+    /// Fetches a byte from memory at the address pointed to by the program counter.
     /// This operation takes 1 cycle.
     /// </summary>
-    private byte FetchByte()
+    protected byte FetchByte() => ReadByte(ProgramCounter++);
+
+    /// <summary>
+    /// Fetches the address of the next instruction.
+    /// After reading, the program counter is incremented.
+    /// This operation takes 2 cycles.
+    /// </summary>
+    private ushort FetchAddress()
     {
-        return ReadByte(ProgramCounter++);
+        var address = ReadAddress(ProgramCounter);
+        ProgramCounter += 2;
+        return address;
     }
 
     /// <summary>
-    /// Fetches a word from memory using the program counter.
+    /// Reads a 16-bit address from memory starting at the specified address.
     /// This operation takes 2 cycles.
     /// </summary>
-    private ushort FetchWord()
+    private ushort ReadAddress(ushort address)
     {
-        var data = ReadWord(ProgramCounter);
-        ProgramCounter += 2;
-        return data;
+        var lo = ReadByte(address);
+        var hi = ReadByte((ushort)(address + 1));
+
+        Cycle(2);
+
+        return (ushort)(lo | (hi << 8));
     }
+
+    // private ushort ReadAddress(AddressMode mode) => ReadAddress(ResolveAddress(mode));
 
     /// <summary>
     /// Reads a byte from memory at the specified address.
     /// This operation takes 1 cycle.
     /// </summary>
-    private byte ReadByte(ushort address)
+    protected byte ReadByte(ushort address)
     {
         var data = Memory[address];
         Cycle();
@@ -456,58 +379,57 @@ public class Processor
     }
 
     /// <summary>
-    /// Reads a byte from memory at the address resolved using the specified address mode.
-    /// This number of cycles taken depends on the address mode.
+    /// Reads a byte from memory at the address resolved using the specified addressing mode.
+    /// This number of cycles taken depends on the mode.
     /// </summary>
-    private byte ReadByte(AddressMode mode)
-        => mode == AddressMode.Immediate ? FetchByte() : ReadByte(Address(mode));
+    // protected byte ReadByte(AddressingMode mode) => ReadByte(ResolveAddress(mode));
 
-    /// <summary>
-    /// Reads a word from memory at the specified address.
-    /// This operation takes 2 cycles.
-    /// </summary>
-    private ushort ReadWord(ushort address)
+    private byte FetchOperand(AddressingMode mode)
     {
-        var value = Memory.ReadWord(address);
-        Cycle(2);
-        return value;
-    }
+        // Non-memory.
 
-    private void Cycle(int times = 1)
-    {
-        for (var i = 0; i < times; i++)
+        if (mode == AddressingMode.Implied)
         {
-            Clock.Cycle();
+            throw new InvalidOperationException("Implied address mode does use operands.");
         }
-    }
 
-    private ushort Address(AddressMode mode)
-    {
-        return mode switch
+        if (mode == AddressingMode.Accumulator)
         {
-            AddressMode.Absolute => AbsoluteAddress(),
-            AddressMode.AbsoluteX => AbsoluteAddress(X),
-            AddressMode.AbsoluteY => AbsoluteAddress(Y),
-            AddressMode.Immediate
-                => throw new InvalidOperationException("Immediate addressing does not use a memory address."),
-            AddressMode.Implied
-                => throw new InvalidOperationException("Implied addressing does not use a memory address."),
-            AddressMode.Indirect => IndirectAddress(),
-            AddressMode.IndirectX => IndirectXAddress(),
-            AddressMode.IndirectY => IndirectYAddress(),
-            AddressMode.ZeroPage => ZeroPageAddress(),
-            AddressMode.ZeroPageX => ZeroPageAddress(X),
-            AddressMode.ZeroPageY => ZeroPageAddress(Y),
+            return A;
+        }
+
+        if (mode == AddressingMode.Immediate)
+        {
+            return FetchByte();
+        }
+
+        // Memory.
+
+        var address = mode switch
+        {
+            AddressingMode.Absolute => AbsoluteAddress(),
+            AddressingMode.AbsoluteX => AbsoluteAddress(X),
+            AddressingMode.AbsoluteY => AbsoluteAddress(Y),
+            AddressingMode.Indirect => IndirectAddress(),
+            AddressingMode.IndirectX => IndirectXAddress(),
+            AddressingMode.IndirectY => IndirectYAddress(),
+            // TODO: AddressingMode.Relative => RelativeAddress(),
+            AddressingMode.ZeroPage => ZeroPageAddress(),
+            AddressingMode.ZeroPageX => ZeroPageAddress(X),
+            AddressingMode.ZeroPageY => ZeroPageAddress(Y),
             _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown address mode.")
         };
+
+        return ReadByte(address);
     }
 
     /// <summary>
-    /// Provides the abs address of the program counter.
+    /// Provides the abs address.
+    /// This is the addre
     /// </summary>
     private ushort AbsoluteAddress(byte offset = 0)
     {
-        var address = FetchWord();
+        var address = FetchAddress();
 
         if (offset == 0)
         {
@@ -515,28 +437,37 @@ public class Processor
         }
 
         var offsetAddress = (ushort)(address + offset);
-        HandleCrossedPageBoundary(address, offsetAddress);
+        CycleIfCrossedPageBoundary(address, offsetAddress);
         return offsetAddress;
     }
 
-    private ushort IndirectAddress() => ReadWord(AbsoluteAddress());
+    private ushort IndirectAddress() => ReadAddress(AbsoluteAddress());
 
+    /// <summary>
+    /// Resolves an address using the indirect X addressing mode.
+    /// </summary>
     private ushort IndirectXAddress()
     {
         var address = FetchByte();
         address += X;
         Cycle();
-        return ReadWord(address);
+        return ReadAddress(address);
     }
 
+    /// <summary>
+    /// Resolves an address using the indirect Y addressing mode.
+    /// </summary>
     private ushort IndirectYAddress()
     {
-        var address = ReadWord(FetchByte());
+        var address = ReadAddress(FetchByte());
         var offsetAddress = (byte)(address + Y);
-        HandleCrossedPageBoundary(address, offsetAddress);
+        CycleIfCrossedPageBoundary(address, offsetAddress);
         return offsetAddress;
     }
 
+    /// <summary>
+    /// Resolves an address using the zero-page addressing mode.
+    /// </summary>
     private ushort ZeroPageAddress(byte offset = 0)
     {
         var address = FetchByte();
@@ -553,7 +484,7 @@ public class Processor
     /// <summary>
     /// Consumes a cycle if a page boundary was crossed.
     /// </summary>
-    private void HandleCrossedPageBoundary(ushort startAddress, ushort endAddress)
+    private void CycleIfCrossedPageBoundary(ushort startAddress, ushort endAddress)
     {
         if (PageOffset(startAddress, endAddress) > 0)
         {
@@ -572,21 +503,9 @@ public class Processor
         SetZeroFlag(value);
     }
 
-    private void SetNegativeFlag(byte value) => SetFlag(Flags.Negative, IsNegative(value));
+    private void SetNegativeFlag(byte value) => Status.Negative = IsNegative(value);
 
-    private void SetZeroFlag(byte value) => SetFlag(Flags.Zero, value == 0);
-
-    private void SetFlag(Flags flag, bool set)
-    {
-        if (set)
-        {
-            Status |= flag;
-        }
-        else
-        {
-            Status &= ~flag;
-        }
-    }
+    private void SetZeroFlag(byte value) => Status.Zero = value == 0;
 
     private static bool IsNegative(byte value) => IsNthBitSet(value, 7);
 
@@ -600,7 +519,9 @@ public class Processor
         return (value & (byte)(1 << n)) != 0;
     }
 
-    private void OnBeforeInstruction(BeforeInstructionEventArgs args) => BeforeInstruction?.Invoke(this, args);
+    private void OnBeforeExecute(Instruction instruction) =>
+        BeforeInstruction?.Invoke(this, new BeforeExecuteEventArgs(instruction));
 
-    private void OnAfterInstruction(AfterInstructionEventArgs args) => AfterInstruction?.Invoke(this, args);
+    private void OnAfterExecute(Operation operation) =>
+        AfterInstruction?.Invoke(this, new AfterExecuteEventArgs(operation));
 }

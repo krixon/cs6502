@@ -6,27 +6,24 @@ using ProcessorFormatter = CS6502.Console.ProcessorFormatter;
 
 var asm = new Assembler(0x800);
 var loader = new Loader();
-var ram = new Memory();
-var mpu = new Processor(ram, new Clock());
+var mpu = new Mos6502();
+var ram = mpu.Memory;
 var cpuFormatter = new ProcessorFormatter();
 var ramFormatter = new MemoryFormatter();
 
 var brk = true;
 
-mpu.BeforeInstruction += (_, args) =>
+mpu.AfterInstruction += (_, args) =>
 {
     // TODO: Support breaking on RTS and RTI for debugging.
-    if (args.Opcode == Opcode.Brk)
+    if (args.Operation.Instruction.Opcode == Opcode.Brk)
     {
         brk = true;
     }
-};
 
-mpu.AfterInstruction += (_, args) =>
-{
     var sb = new StringBuilder();
 
-    sb.AppendLine($"Executed {args.Opcode.ToString().ToUpperInvariant()}\n");
+    sb.AppendLine($"Executed {args.Operation.Instruction.Opcode.ToString().ToUpperInvariant()}\n");
     sb.AppendLine(cpuFormatter, $"{mpu:full}\n");
     sb.Append(ramFormatter, $"{ram:$800}");
 
@@ -37,7 +34,7 @@ asm.LDA_IMM(-42);
 asm.LDX_IMM(42);
 asm.BRK();
 
-loader.Load(asm.Assemble(), ram);
+loader.Load(asm.Assemble(), mpu.Memory);
 
 mpu.Reset();
 

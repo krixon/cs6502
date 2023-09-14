@@ -3,7 +3,7 @@ using FluentAssertions;
 
 namespace Emulation.Tests;
 
-public class Tests
+public class Mos6502Tests
 {
     [SetUp]
     public void Setup()
@@ -13,7 +13,7 @@ public class Tests
     [Test]
     public void ItSetsRegistersToInitialStateOnReset()
     {
-        var mpu = new Processor();
+        var mpu = new Mos6502();
 
         mpu.Reset();
 

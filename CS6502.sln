@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Console\Console.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly", "Assembly\Assembly.csproj", "{A6D3CCA1-6586-47DF-9037-5F979891CCAD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emulation.Tests", "Emulation.Tests\Emulation.Tests.csproj", "{66FD82F8-D6AB-47E2-824A-DDD54A0820BE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A6D3CCA1-6586-47DF-9037-5F979891CCAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66FD82F8-D6AB-47E2-824A-DDD54A0820BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66FD82F8-D6AB-47E2-824A-DDD54A0820BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66FD82F8-D6AB-47E2-824A-DDD54A0820BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66FD82F8-D6AB-47E2-824A-DDD54A0820BE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
